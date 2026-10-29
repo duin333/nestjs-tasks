@@ -1,142 +1,157 @@
-# NestJS boilerplate
+# Tasks API (NestJS)
 
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="200" alt="Nest Logo" /></a>
-</p>
+API quản lý danh sách công việc cá nhân (To-do), xây dựng trên [nestjs-boilerplate của GDSC-DUT](https://github.com/dscdut/nestjs-boilerplate).
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+## Công nghệ
 
-<p align="center">NestJS Boilerplate</p>
+- NestJS + TypeScript
+- PostgreSQL 16 (chạy bằng Docker)
+- TypeORM (có migration)
+- `class-validator` / `class-transformer` để kiểm tra dữ liệu đầu vào
 
-## Prerequisites
+## Yêu cầu
 
-- [Node.js](https://nodejs.org/en) v16+
-- [PostgreSQL](https://www.postgresql.org/)
+- Node.js v16+
+- Docker Desktop (để chạy PostgreSQL)
 
-## Installation
-
-```bash
-# install packages
-$ npm install
-
-# init database
-$ docker compose up -d init_db
-```
-
-If you encounter the error related to `argon2` then uncomment the following command in `docker-compose.yml` file
-
-```yaml
-command: sh -c "npm rebuild argon2 --build-from-source && npm run typeorm:run-migration && npm run seed:run"
-```
-
-## Migration
+## Cách chạy
 
 ```bash
-# run migrations
-$ npm run typeorm:run-migrations
+# 1. Cài thư viện
+npm install
 
-# generate migrations
-$ npm run typeorm:generate-migration --name=migration-name
+# 2. Tạo file .env từ file mẫu (Windows: copy .env.example .env)
+cp .env.example .env
+
+# 3. Bật PostgreSQL bằng Docker (chỉ service db)
+docker compose up -d db
+
+# 4. Chạy migration để tạo bảng (có bảng tasks)
+npm run typeorm:run-migration
+
+# 5. Chạy app ở chế độ dev
+npm run start:dev
 ```
 
-If script above doesn't work, try using `git bash`, change `$npm_config_name` in package.json to `%name%` and run the following script:
+App chạy ở `http://localhost:3000`, tiền tố API là `/api/v1`.
 
-```bash
-$ name=migration-name npm run typeorm:generate-migration
-```
+> Các giá trị trong `.env.example` chỉ là mẫu. Phần `TYPEORM_*` đã khớp với container PostgreSQL trong `docker-compose.yml`. Các khóa Google, Cloudinary, MoMo không cần cho bài này.
 
-## Seeding
+## Mô hình dữ liệu (bảng `tasks`)
 
-### Creating seeds
+| Field | Kiểu | Ghi chú |
+| :-- | :-- | :-- |
+| `id` | number | Tự tăng (`SERIAL`) |
+| `title` | string | Bắt buộc, 1 - 255 ký tự |
+| `category` | string | Tùy chọn, chủ đề của công việc |
+| `description` | string | Tùy chọn |
+| `isCompleted` | boolean | Mặc định `false` |
+| `createdAt` | Date | Thời điểm tạo |
+| `updatedAt` | Date | Thời điểm cập nhật gần nhất |
 
-1. Create seed file with the following command:
+## Endpoint
 
-```bash
-# `Demo` is name of entity.
-$ npm run seed:create -- --name=Demo
-```
+| Method | Endpoint | Mô tả | Status thành công |
+| :-- | :-- | :-- | :-- |
+| POST | `/api/v1/tasks` | Tạo công việc | `201` |
+| GET | `/api/v1/tasks` | Lấy danh sách (có lọc) | `200` |
+| GET | `/api/v1/tasks/:id` | Lấy chi tiết | `200` |
+| PATCH | `/api/v1/tasks/:id` | Cập nhật (mọi field optional) | `200` |
+| DELETE | `/api/v1/tasks/:id` | Xóa | `200` |
 
-1. Go to `src/database/typeorm/seeds/demo/demo-seed.service.ts`.
-2. In `run` method extend your logic.
+### Tạo công việc
 
-### Run seed
-
-```bash
-$ npm run seed:run
-```
-
-## Generate module, controller & service
-
-With `$npm_config_name` in `package.json`
-
-```bash
-# Generate module
-$ npm run module:generate --name=module-name
-
-# Generate controller
-$ npm run controller:generate --name=controller-name
-
-# Generate service
-$ npm run service:generate --name=service-name
-```
-
-With `%name%` in `package.json`
-
-```bash
-# Generate module
-$ name=demo npm run module:generate
-
-# Generate controller
-$ name=demo npm run controller:generate
-
-# Generate service
-$ name=demo npm run service:generate
-```
-
-Module, controller & service of Demo will be created in `src/modules/demo`
-
-## Gen entity from database
-
-1. Change the desired database name in the `gen-entity-local` script in `package.json`
+`POST /api/v1/tasks`
 
 ```json
-"gen-entity-local": "npx typeorm-model-generator -h localhost -d <YOUR-DATABASE-NAME> -u postgres -x postgres -e postgres -o src/database/typeorm/generated  --skipTables=migrations,spatial_ref_sys --noConfig --cf=none --namingStrategy=./src/config/namingStrategy",
+{
+  "title": "Học NestJS cơ bản",
+  "category": "Backend",
+  "description": "Tìm hiểu về DTO, Controller, Service và Module"
+}
 ```
 
-2. Run the following command
+Phản hồi `201 Created`:
 
-```bash
-$ npm run gen-entity-local
+```json
+{
+  "id": 1,
+  "title": "Học NestJS cơ bản",
+  "category": "Backend",
+  "description": "Tìm hiểu về DTO, Controller, Service và Module",
+  "isCompleted": false,
+  "createdAt": "2026-10-29T07:16:06.960Z",
+  "updatedAt": "2026-10-29T07:16:06.960Z"
+}
 ```
 
-The new entities can be found at `src/database/typeorm/generated` folder
+### Lấy danh sách
 
-## Running the app
+`GET /api/v1/tasks`
 
-```bash
-# development
-$ npm run start
+Query tùy chọn:
 
-# watch mode
-$ npm run start:dev
+- `isCompleted=true|false`: lọc theo trạng thái hoàn thành
+- `category=<chuỗi>`: lọc theo chủ đề
 
-# production mode
-$ npm run start:prod
+Ví dụ: `GET /api/v1/tasks?isCompleted=true&category=Backend`. Kết quả sắp xếp theo `createdAt` mới nhất trước.
+
+### Cập nhật
+
+`PATCH /api/v1/tasks/:id`, chỉ cần gửi field muốn đổi:
+
+```json
+{ "isCompleted": true }
 ```
 
-## Test
+### Xóa
 
-```bash
-# unit tests
-$ npm run test
+`DELETE /api/v1/tasks/:id` trả `200`:
 
-# unit tests in watch mode
-$ npm run test:watch
+```json
+{ "message": "Tasks with ID 1 deleted" }
+```
 
-# e2e tests
-$ npm run test:e2e
+## Xử lý lỗi
 
-# test coverage
-$ npm run test:cov
+| Trường hợp | Status |
+| :-- | :-- |
+| Dữ liệu không hợp lệ (thiếu `title`, `title` rỗng hoặc dài hơn 255, sai kiểu dữ liệu) | `400 Bad Request` |
+| `:id` không phải số | `400 Bad Request` |
+| Không tìm thấy bản ghi khi GET, PATCH, DELETE theo `:id` | `404 Not Found` |
+| Lỗi hệ thống / mất kết nối DB | `500 Internal Server Error` |
+
+Message của lỗi 404: `Tasks with ID ${id} not found`. Message lỗi được boilerplate xử lý nên khi trả về có thêm tiền tố `errors.`.
+
+## Lựa chọn thiết kế
+
+- `id` dùng số tự tăng thay vì UUID, giống các bảng có sẵn trong boilerplate.
+- `DELETE` trả `200` kèm message (đề cho phép `200` hoặc `204`).
+- Việc kiểm tra tồn tại (404) nằm ở `TasksService`, controller chỉ nhận request và gọi service.
+- Schema DB được tạo bằng migration (`src/database/typeorm/migrations`), không dùng `synchronize`.
+
+## Cấu trúc mã nguồn của module
+
+```
+src/modules/tasks/
+├── dto/
+│   ├── create-task.dto.ts      # dữ liệu tạo mới
+│   ├── update-task.dto.ts      # dữ liệu cập nhật (mọi field optional)
+│   └── get-tasks-query.dto.ts  # query lọc danh sách
+├── tasks.controller.ts         # định nghĩa 5 route
+├── tasks.service.ts            # logic nghiệp vụ, truy vấn DB
+└── tasks.module.ts             # đăng ký controller, service, entity
+src/database/typeorm/
+├── entities/task.entity.ts
+└── migrations/1793168600000-create-tasks-table.ts
+```
+
+## Thử nhanh bằng curl
+
+Trên PowerShell, truyền JSON trực tiếp bằng `-d` dễ bị mất dấu `"`. Nên lưu JSON vào file rồi dùng `-d "@file.json"`:
+
+```powershell
+Set-Content -Path create.json -Value '{"title":"Hoc NestJS","category":"Backend"}'
+curl.exe -i -X POST http://localhost:3000/api/v1/tasks -H "Content-Type: application/json" -d "@create.json"
+curl.exe http://localhost:3000/api/v1/tasks
 ```
